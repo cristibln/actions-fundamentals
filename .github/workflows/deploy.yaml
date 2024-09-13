@@ -43,7 +43,7 @@ jobs:
         
       - name: Run Scripts
         run: |
-          for file in scripts/*.js;
+          for file in scripts/**.js;
           do
             node $file
           done
