@@ -38,8 +38,8 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           
       # Install Linters step due to failure caused by lack of dependecies that are not subject of this project
-      #- name: Install Linters
-       # run: npm run js:lint
+      - name: Install Linters
+        run: npm run js:lint
         
       - name: Run Scripts
         run: |
