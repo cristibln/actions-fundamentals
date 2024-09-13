@@ -1,0 +1,119 @@
+name: Deploy Changes
+
+on: 
+  push:
+    branches:
+      - main
+    filepaths-ignore:
+      - ".gitignore/*"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "LICENSE.txt"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.push.branch || github.event.pull_request.head.branch }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node JS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Load Cached Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install Linters
+        run: npm run lint 
+
+      - name: Run Scripts
+        run: |
+          for file in scripts/*.js;
+          do
+            node $file
+          done
+        env:
+          timeout: ${{ vars.URL_CHECKER_TIMEOUT }}
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      
+      - name: Load Cached Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      
+      - name: Build Static Page
+        run: npm run eleventy:prod
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ./_site
+
+  deploy:
+    needs: 
+      - test
+      - build
+    
+    environment:
+      name: github-pages
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      issues: write
+
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v3
+        with:
+          path: ./_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        
+      - name: Create Issue for Deployment
+        run: |
+          echo gh issue create --title "$DATE" Deployment: "$STATUS" --body "$BODY" 
+        env: 
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DATE: $(date +'%Y-%m-%d')
+          STATUS: ${{ steps.deployment.status }}
+          BODY: 'https://pbpb3pezk7.prod.udacity-student-workspaces.com/proxy/8080/'
